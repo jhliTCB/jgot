@@ -2,7 +2,6 @@
 # By Junhao Li, PhD, jun828hao@gmail.com
 # TODO merge charge2zero.py get_input_info.py gvcom2molUPcom.py into oniom_input.py
 # TODO add -modredundat option, add modredundant section according to given mask
-# TODO adde options to -ener , e.g. print SP (default), print(all OP), convergence, SCF, etc
 # TODO read frequencies information
 # TODO print/modifie freezed residues, atom ids, QM residues, atom ids in com file
 # TODO to use class??? logger?
@@ -76,7 +75,7 @@ def step_parser(args_step,stat_list,op_len):
         elif 'p' in args_step and args_step != 'lastpt':
             out_step[0] = int(args_step.split('p')[0])-1
             info = "Step_ID {} given, extracting the {} th optimization point"
-            print(info.format(args_step, out_step+1))
+            print(info.format(args_step, out_step[0]+1))
         elif args_step == 'lastpt':
             out_step[0] = -1
             print("The last optimization, maybe stationary, will be extracted")
@@ -129,7 +128,13 @@ def add_pdb_info(coords1, coords2):
     for i in range(0, len(coords1)):
         lle1 = coords1[i].split()
         lle2 = coords2[i].split()
-        if lle1[0].strip().split('-')[0] != Num2Element(int(lle2[0].strip())):
+        if "(" in lle2[0]:
+            element2 = lle2[0].split('-')[0]
+        elif len(re.findall(r'[A-Z][a-z]', lle2[0])) == 0:
+            element2 = Num2Element(int(lle2[0].strip()))
+        else:
+            element2 = lle2[0]
+        if lle1[0].strip().split('-')[0] != element2:
             print("Error, element not match! something wrong??")
             exit(1)
         for j in range(2, 5):
@@ -191,10 +196,10 @@ def get_qm_coords(new_coords,link_lines):
                     break
             # using "dash" is much more better than using repl_five!!!!!
             newInfo = [linkAtm,linkAtm,dash+pdbInfo[2+indx[1]],pdbInfo[3+indx[1]],
-                       linkAtm+pdbInfo[4+indx[1]]] + pdbInfo[5+indx[1]:]
+                        linkAtm+pdbInfo[4+indx[1]]] + pdbInfo[5+indx[1]:]
             newInfo = ' {}-{}-{}({}={},{}={},{}={}) 0 '.format(*newInfo)
             newList = scale_xyz([float(linLine.split()[x]) for x in [2,3,4]],
-                      [float(llist[x]) for x in [2,3,4]], float(scaling))
+                        [float(llist[x]) for x in [2,3,4]], float(scaling))
             #outputs = [linkAtm+llist[1]]+[str(x) for x in newList]+[llist[5],'\n']
             #outputs = [pdbInfo,llist[1]]+[str(x) for x in newList]+['H', '\n']
             #outputs = [linkAtm]+[str(x) for x in newList]+['\n']
@@ -266,13 +271,14 @@ def zero_charges(coords, res):
     return new_coords
 
 def read_oniom_log(log, natoms): 
-    # Extract geometries and energies
-    OP,joa, SP, jsa   = 0, 0, 0, 0
+    # Extract geometries and energies; Convergence follows the ONIOM energy flag
+    OP,joa, SP, jsa, conv = 0, 0, 0, 0, 0
     OP_coords, SP_coord_ind = [], []
     flag, flag2 = 'NULL', 'NULL'
     links_scale = []
     irc_pt_list = [] # same length with SP_coord_ind
     energy_flag = False
+    conver_flag = False # " Converged?" in line
     for line in open(log, 'r'):
         if "ONIOM: Cut between" in line and line not in links_scale:
         #will be risky if Gaussian can addapt the scaling factor during opt
@@ -342,6 +348,17 @@ def read_oniom_log(log, natoms):
             if "ONIOM: extrapolated" in line:
                 OP_coords[-1].append(energy_geom) 
                 energy_flag = False
+
+        if " Converged?" in line:
+            conver_list = []
+            conver_flag = True
+        elif conver_flag:
+            conver_list.append([x.strip() for x in line[22:].split()]) 
+            conv += 1
+            if conv == 5:
+                OP_coords[-1].append(conver_list) # array of 6 x 3
+                conver_flag = False
+                conv = 0
 
     return [SP_coord_ind, OP_coords, irc_pt_list, links_scale]
 
@@ -496,10 +513,14 @@ def parse_com_end(com_endings, what_to_return):
 def get_index_from_modredundant(modredundant):
     out = [] #2D list
     for line in modredundant:
-        for T in ['S','F','A','B','K','R','D','H']:
-            if T in line:
-                out.append([int(x)-1 for x in line.split('S')[0].split()[1:]])
-                break
+        #for T in ['S','F','A','B','K','R','D','H']:
+        #    if T in line and 'S' in line:
+        #        out.append([int(x)-1 for x in line.split('S')[0].split()[1:]])
+        #        break
+        if 'S' in line: T = 'S'
+        if 'F' in line: T = 'F'
+        if T:
+            out.append([int(x)-1 for x in line.split(T)[0].split()[1:]])
     return(out)
 
 def vector(a, b):
@@ -642,7 +663,7 @@ def coords2pdb(coords,shift):
     #"{:6s}{:5d} {:^4s}{:1s}{:3s} {:1s}{:4d}{:1s}   {:8.3f}\
     #{:8.3f}{:8.3f}{:6.2f}{:6.2f}          {:>2s}{:2s}".format(...)
     PDBForm = "{:6s}{:5d} {:^4s}{:1s}{:3s} {:1s}{:4d}{:1s}   {:8.3f}" + \
-              "{:8.3f}{:8.3f}{:6.2f}{:6.2f}          {:>2s}{:2s}\n"
+            "{:8.3f}{:8.3f}{:6.2f}{:6.2f}          {:>2s}{:2s}\n"
     outList = []
     f_xyzs  = [[float(xx) for xx in RR.split()[2:5]] for RR in coords ]
     for i in range(len(coords)):
@@ -658,7 +679,7 @@ def coords2pdb(coords,shift):
         xyz = f_xyzs[i]
         #charge = float(indx[0])*float(reclst[2+indx[1]])
         atmlst = ['ATOM',i+1,pdbNam," ",resNam,"X",resNum," ",
-                   xyz[0],xyz[1],xyz[2],1.0,1.0,elemt,"  "]
+                xyz[0],xyz[1],xyz[2],1.0,1.0,elemt,"  "]
         outList.append(PDBForm.format(*atmlst))
     return outList
 
@@ -700,7 +721,21 @@ def pickle_io(logName,action,N_atoms):
         print("The list logInfo has been loaded from {}".format(pkl_name))
     return info
 
-def print_log_ener(logInfo,measure_list,coords1,IRC):
+def conv_minus(conv):
+    # conv: 6 x 3
+    out = []
+    for c in conv:
+        yesno = c[-1]
+        if yesno == 'NO':
+            if '*' in c[0]:
+                yesno += '_********'
+            else:
+                distc = abs(float(c[0])-float(c[1]))
+                yesno += str("_{:.6f}".format(distc))
+        out.append("{:8s}".format(yesno))
+    return out
+
+def print_log_ener(logInfo,measure_list,coords1,IRC,conv_flag):
     if len(logInfo[0]) != 0:
         ener_tile = ["StationaryID","Low_model","High_model","Low_real","Extrapolated"]
         coods_out = [logInfo[1][i] for i in logInfo[0]]
@@ -718,12 +753,17 @@ def print_log_ener(logInfo,measure_list,coords1,IRC):
         print("The IRC information will be printed in the end")
         ener_tile += ["#IRC_Step","point_number","path_direction"]
         IDnumP = [[str(i+1)]+IRC[i] for i in range(len(IRC))]
+    
+    if conv_flag:
+        ener_tile += ["d_Max_Force","d_RMS_Force","d_Max_Displ",
+                "d_RMS_Displ","d_Max_MM_Force","d_RMS_MM_Force"]
 
     print(','.join(ener_tile))
 
     for i in range(len(coods_out)):
-        eners = [str(i+1)]+coods_out[i][-1]
-        if len(eners) > 5:
+        if len(coods_out[i][-2]) < 5:
+            eners = [str(i+1)]+coods_out[i][-2]
+        else:
             eners = [str(i+1)]+['NaN']*4
         if len(measure_list) > 0:
             for indes in measure_list:
@@ -731,6 +771,9 @@ def print_log_ener(logInfo,measure_list,coords1,IRC):
                 eners.append("{:.4f}".format(c))
         if IRC:
             eners += IDnumP[i]
+        if conv_flag:
+            eners += conv_minus(coods_out[i][-1])
+
         print(','.join(eners))
 
 def get_newcom_headings(args,logInit,OutName,comlst1,blank_ind1):

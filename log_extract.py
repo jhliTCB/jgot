@@ -8,24 +8,27 @@ def parser4LogExtract():
     basic = parser.add_argument_group(description="Required and basic options:")
     basic.add_argument('-g',dest='gau_log',type=str,required=True,help=
     '''Required! A gaussian .log/.out files with at least one geometry and energy
-       e.g. -g ts_clac_IRC_RC.log/.out
+        e.g. -g ts_clac_IRC_RC.log/.out
     ''')
     basic.add_argument('-o',dest='out_file_name',type=str,default="Empty",help=
     '''optional. The output filename with supported suffix (currently: .com/.gjf/.pdb), 
-       e.g. -o system_ircRC.com/.gjf
-       e.g. -o scanned_point7.pdb
-       when -ener is not given, -o is required!
+        e.g. -o system_ircRC.com/.gjf
+        e.g. -o scanned_point7.pdb
+        when -ener is not given, -o is required!
     ''')
     basic.add_argument('-ener',dest='energy', action='store_true',help=
     '''optional. The energy details will be printed,             
         e.g. -ener
     when -o is not given, -ener is required!
     ''')
+    basic.add_argument('-conv',dest='convergence',action='store_true',help=
+    '''optional, but use together with -ener
+        e.g. -ener -conv''')
     basic.add_argument('-t',dest='input_template',type=str,default="FromLog",help=
     '''optional. A .com/.gjf template input, with full MM atomtype and charge, connections
-       default is taken from the .com/.gjf file that generates the .log/.out file
-       When .log/.out does not contain PDBinfo, -t must be given!
-       e.g. -t mod_rc1.com/.gjf
+        default is taken from the .com/.gjf file that generates the .log/.out file
+        When .log/.out does not contain PDBinfo, -t must be given!
+        e.g. -t mod_rc1.com/.gjf
     ''')
     
     extract = parser.add_argument_group(description="Options for .log/.out extracting:")
@@ -104,7 +107,7 @@ if args.verbose:
     print("Number of atoms in tmeplate com: {}".format(len(coords1)))
 
 ### Get more log info, either from log or previous dumpped pickle
-# [[indicies of Stationary points],[lists of coordinates[+energy],
+# [[index of Stationary],[lists of coordinates[+energy]+[convergence],
 # irc_pt_list, links_scale]]    <- logInfo
 # new coord structure: coord[-1] = energy_geom
 # lne(coord) = len(coords1) or len(coords1)+1
@@ -142,7 +145,7 @@ else:
     IRC = False
 
 if args.energy:
-    jgot.print_log_ener(logInfo,measures,coords1,IRC)
+    jgot.print_log_ener(logInfo,measures,coords1,IRC,args.convergence)
 if OutName == "Empty":
     exit(0)
 
