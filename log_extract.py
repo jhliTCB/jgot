@@ -172,8 +172,8 @@ for ii in range(len(out_steps)):
                 point_path = IRC[int(args.step)-1]
                 print("The {} th point in the {} path will be extracted".format(*point_path))
 
-    if len(logInfo[1][out_step])-len(coords1) == 1:
-        coord2 = logInfo[1][out_step][:-1]
+    if len(logInfo[1][out_step])-len(coords1) == 2:
+        coord2 = logInfo[1][out_step][:-2]
     else:
         coord2 = logInfo[1][out_step] # this is a geometry without energy
         print("This geometry has 0 energy records, if it's not the last, please check!")
