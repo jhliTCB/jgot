@@ -668,18 +668,21 @@ def coords2pdb(coords,shift):
     f_xyzs  = [[float(xx) for xx in RR.split()[2:5]] for RR in coords ]
     for i in range(len(coords)):
         record = coords[i]
+        occ = float(record.split()[1]) # pymol: sele free_move, q > -1
+        alt = record.split()[5]
         indx = get_chg_indx(record.split()[0])
         reclst = five_repl(record)
         elemt  = reclst[0].strip()
         pdbNam = reclst[4+indx[1]]
         resNam = reclst[6+indx[1]]
+        charge = float(indx[0])*float(reclst[2+indx[1]]) # writeen in b-factor column
         resNum = int(reclst[8+indx[1]])+shift
         if resNum > 9999:
             resNum -= 9999
         xyz = f_xyzs[i]
         #charge = float(indx[0])*float(reclst[2+indx[1]])
-        atmlst = ['ATOM',i+1,pdbNam," ",resNam,"X",resNum," ",
-                xyz[0],xyz[1],xyz[2],1.0,1.0,elemt,"  "]
+        atmlst = ['ATOM',i+1,pdbNam,alt,resNam,"X",resNum," ",
+                xyz[0],xyz[1],xyz[2],occ,charge,elemt,"  "]
         outList.append(PDBForm.format(*atmlst))
     return outList
 
